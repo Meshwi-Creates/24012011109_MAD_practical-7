@@ -1,101 +1,85 @@
 package com.meshwi.a24012011109_mad_practical_7
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.meshwi.a24012011109_mad_practical_7.databinding.ActivityMainBinding
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 
 class MainActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var db: DatabaseHelper
+    private lateinit var adapter: PersonAdapter
+    private val persons = ArrayList<Person>()
+
+    private val apiUrl = "https://api.json-generator.com/templates/5rDXHcbgpo93/data"
+    private val apiToken = "d7wrtfqywyhu7y2bcbsz3cgjpbfisuhnmbibvgvf"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        setContentView(R.layout.activity_main)
+        db = DatabaseHelper(this)
+        adapter = PersonAdapter(persons) { person -> db.deletePerson(person) }
+        binding.recyclerView.layoutManager = LinearLayoutManager(this)
+        binding.recyclerView.adapter = adapter
 
-        val personList = arrayListOf(
+        binding.fabRefresh.setOnClickListener { fetchPersons() }
 
-            Person(
-                "1",
-                "Yesenia Yang",
-                "yesenia_yang@gnu.ac.in",
-                "+917983385148",
-                "16 Sackett Street, Courtland, Michigan",
-                42.7336,
-                -84.5553
-            ),
+        if (db.personsCount == 0) fetchPersons() else showPersons()
+    }
 
-            Person(
-                "2",
-                "Sosa Shaffer",
-                "sosa_shaffer@gnu.ac.in",
-                "+917979501912",
-                "99 Union Street, Nicholson, Iowa",
-                41.8995,
-                -93.1843
-            ),
+    private fun showPersons() {
+        persons.clear()
+        persons.addAll(db.allPersons)
+        adapter.notifyDataSetChanged()
+    }
 
-            Person(
-                "3",
-                "Roberts Gill",
-                "roberts_gill@gnu.ac.in",
-                "+919241276734",
-                "39 Tompkins Place, Bartonsville, Oklahoma",
-                35.4676,
-                -97.5164
-            ),
+    private fun fetchPersons() {
+        CoroutineScope(Dispatchers.IO).launch {
+            val data = HttpRequest().makeServiceCall(apiUrl, apiToken)
+            val list = if (data != null) parsePersons(data) else null
+            if (list != null) {
+                db.deleteAll()
+                list.forEach { db.insertPerson(it) }
+            }
+            withContext(Dispatchers.Main) {
+                if (list == null) {
+                    Toast.makeText(this@MainActivity, "Failed to load data", Toast.LENGTH_SHORT).show()
+                } else {
+                    showPersons()
+                }
+            }
+        }
+    }
 
-            Person(
-                "4",
-                "Penelope Cooper",
-                "penelope_cooper@gnu.ac.in",
-                "+916836390000",
-                "35 Aitken Place, Orovada, Maryland",
-                39.0558,
-                -76.6413
-            ),
-
-            Person(
-                "5",
-                "Park George",
-                "park_george@gnu.ac.in",
-                "+918895814051",
-                "95 Woods Place, Ahwahnee, Nebraska",
-                41.4925,
-                -99.9018
-            ),
-
-            Person(
-                "6",
-                "Horne Koch",
-                "horne_koch@gnu.ac.in",
-                "+918797996598",
-                "72 Oak Street, Denver, Colorado",
-                39.7392,
-                -104.9903
-            ),
-
-            Person(
-                "7",
-                "Emma Wilson",
-                "emma_wilson@gnu.ac.in",
-                "+919876543210",
-                "24 Park Avenue, Austin, Texas",
-                30.2672,
-                -97.7431
-            ),
-
-            Person(
-                "8",
-                "Daniel Brown",
-                "daniel_brown@gnu.ac.in",
-                "+919812345678",
-                "18 Lake Road, Seattle, Washington",
-                47.6062,
-                -122.3321
-            )
-        )
-
-        val recyclerView = findViewById<RecyclerView>(R.id.rv_contact)
-
-        recyclerView.adapter = PersonAdapter(personList)
+    private fun parsePersons(json: String): ArrayList<Person>? {
+        return try {
+            val array = JSONArray(json)
+            val list = ArrayList<Person>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val profile = obj.getJSONObject("profile")
+                list.add(
+                    Person(
+                        obj.getString("id"),
+                        profile.getString("name"),
+                        obj.getString("email"),
+                        obj.getString("phone").replace("}", "").trim(),
+                        profile.getString("address")
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            null
+        }
     }
 }
