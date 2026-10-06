@@ -47,7 +47,7 @@ This practical demonstrates how to retrieve person data from an internet API in 
 
 ### Main Screen
 
-![Main Screen](screenshots/main_screen.png)
+![Main Screen](app/screenshot/7_1.png)
 
 
 ## Project Structure
